@@ -1,0 +1,186 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.IO;
+
+namespace PZ5_Font_Extractor
+{
+    public static class N1G
+    {
+        private struct Header
+        {
+            public Int64 Magic;
+            public int FileSize;
+            public int HeaderSize;
+            public int AtlasOffset;
+        }
+        private struct CharID
+        {
+            public int CharCode;
+            public char Character;
+        }
+        private struct GlyphInfo
+        {
+            public int CharCode;
+            public string Character;
+            public byte WScale;
+            public byte Height;
+            public byte Xadv;
+            public byte Yadv;
+            public byte Width;
+            public int TexOffset;
+            public byte[] RawTex;
+        }
+        private static Header ReadHeader(ref BinaryReader reader)
+        {
+            reader.BaseStream.Seek(0, SeekOrigin.Begin);
+            Header header = new Header();
+            header.Magic = reader.ReadInt64();
+            header.FileSize = reader.ReadInt32();
+            header.HeaderSize = reader.ReadInt32();
+            reader.BaseStream.Position += 4;
+            header.AtlasOffset = reader.ReadInt32();
+            return header;
+        }
+
+        private static GlyphInfo[] ReadGlyphs(ref BinaryReader reader, Header header)
+        {
+            reader.BaseStream.Position = header.HeaderSize;
+            int charCount = 0;
+            CharID[] charIDs = new CharID[0xFFFF];
+            for (int i = 0; i < 0xFFFF; i++)
+            {
+                ushort ordinal = reader.ReadUInt16();
+                if ((ordinal == 0 && charCount <= ordinal + 1) || ordinal > 0)
+                {
+                    charCount = ordinal + 1;
+                    charIDs[ordinal].CharCode = i;
+                    charIDs[ordinal].Character = (char)i;
+                }
+            }
+            reader.BaseStream.Position += 2;
+            GlyphInfo[] glyphs = new GlyphInfo[charCount];
+            for (int i = 0; i < charCount; i++)
+            {
+                glyphs[i].CharCode = charIDs[i].CharCode;
+                glyphs[i].Character = charIDs[i].Character.ToString();
+                glyphs[i].WScale = reader.ReadByte();
+                glyphs[i].Height = reader.ReadByte();
+                glyphs[i].Xadv = reader.ReadByte();
+                glyphs[i].Yadv = reader.ReadByte();
+                glyphs[i].Width = reader.ReadByte();
+                reader.BaseStream.Position += 3;
+                glyphs[i].TexOffset = reader.ReadInt32();
+                long temp = reader.BaseStream.Position;
+                reader.BaseStream.Position = header.AtlasOffset + glyphs[i].TexOffset;
+                glyphs[i].RawTex = reader.ReadBytes(0x0992); //4 bpp, Width * Height * 0.5 = image size, the rest can be shadow or mipmap
+                reader.BaseStream.Position = temp;
+            }
+            return glyphs;
+        }
+        public static void Extract(string input, string output)
+        {
+            using (FileStream stream = File.OpenRead(input))
+            {
+                BinaryReader reader = new BinaryReader(stream);
+                Header header = ReadHeader(ref reader);
+                GlyphInfo[] glyphs = ReadGlyphs(ref reader, header);
+                string rawPath = Path.Combine(output, "RawImg");
+                if (!Directory.Exists(rawPath)) Directory.CreateDirectory(rawPath);
+                List<string> fontData = new List<string>();
+                foreach (GlyphInfo glyph in glyphs)
+                {
+                    File.WriteAllBytes(Path.Combine(rawPath, $"{glyph.CharCode}"), glyph.RawTex); 
+                    fontData.Add($"Char={glyph.Character}\tCode={glyph.CharCode}\tWScale={glyph.WScale}\tHeight={glyph.Height}\tXadv={glyph.Xadv}\tYadv={glyph.Yadv}\tWidth={glyph.Width}");
+                }
+                File.WriteAllLines(Path.Combine(output, "glyphs.txt"), fontData.ToArray());
+                Console.WriteLine($"Unpacked: {glyphs.Length} glyphs");
+                reader.Close();
+            }
+        }
+        public static void Import(string original, string input, string output)
+        {
+            MemoryStream result = new MemoryStream();
+            List<GlyphInfo> glyphs = new List<GlyphInfo>();
+            using (BinaryWriter writer = new BinaryWriter(result))
+            {
+                using (FileStream stream = File.OpenRead(original))
+                {
+                    string[] fontData = File.ReadAllLines(Path.Combine(input, "glyphs.txt"));
+                    BinaryReader reader = new BinaryReader(stream);
+                    Header header = ReadHeader(ref reader);
+                    reader.BaseStream.Seek(0, SeekOrigin.Begin);
+                    writer.Write(reader.ReadBytes(header.HeaderSize));
+                    ushort[] charIDs = new ushort[0xFFFF];
+                    int textOffset = 0;
+                    int ordinal = 0;
+                    for (int i = 0; i < fontData.Length; i++)
+                    {
+                        string[] data = fontData[i].Split(new[] { "\t" }, StringSplitOptions.None);
+                        if (data.Length == 0 || data.Length < 7) continue;
+                        try
+                        {
+                            GlyphInfo glyph = new GlyphInfo();
+                            glyph.Character = data[0].Split('=')[1];
+                            glyph.CharCode = int.Parse(data[1].Split('=')[1]);
+                            string rawImg = Path.Combine(input, "RawImg", $"{glyph.CharCode}");
+                            if (!File.Exists(rawImg)) continue;
+                            glyph.WScale = (byte)int.Parse(data[2].Split('=')[1]);
+                            glyph.Height = (byte)int.Parse(data[3].Split('=')[1]);
+                            glyph.Xadv = (byte)int.Parse(data[4].Split('=')[1]);
+                            glyph.Yadv = (byte)int.Parse(data[5].Split('=')[1]);
+                            glyph.Width = (byte)int.Parse(data[6].Split('=')[1]);
+                            glyph.RawTex = File.ReadAllBytes(rawImg);
+                            if (glyph.RawTex.Length != 0x0992)
+                            {
+                                Console.WriteLine($"{Path.GetFileName(rawImg)}: Import file size does not match the original size!");
+                                continue;
+                            }
+                            glyph.TexOffset = textOffset;
+                            glyphs.Add(glyph);
+                            textOffset += glyph.RawTex.Length;
+                            charIDs[glyph.CharCode] = (ushort)ordinal++;
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                            continue;
+                        }
+                    }
+                    for (int i = 0; i < charIDs.Length; i++)
+                    {
+                        writer.Write(charIDs[i]);
+                    }
+                    writer.Write(new byte[2]);
+                    glyphs = glyphs.OrderBy(g => g.CharCode).ToList();
+                    long glyphOffset = writer.BaseStream.Position;
+                    writer.Write(new byte[0xC * glyphs.Count]);
+                    long atlasOffset = writer.BaseStream.Position;
+                    writer.BaseStream.Position = glyphOffset;
+                    for (int i = 0; i < glyphs.Count; i++)
+                    {
+                        writer.Write(glyphs[i].WScale);
+                        writer.Write(glyphs[i].Height);
+                        writer.Write(glyphs[i].Xadv);
+                        writer.Write(glyphs[i].Yadv);
+                        writer.Write(glyphs[i].Width);
+                        writer.Write((byte)0xDD);
+                        writer.Write((byte)0x0);
+                        writer.Write((byte)0x46);
+                        writer.Write(glyphs[i].TexOffset);
+                        long temp = writer.BaseStream.Position;
+                        writer.BaseStream.Position = atlasOffset + glyphs[i].TexOffset;
+                        writer.Write(glyphs[i].RawTex);
+                        writer.BaseStream.Position = temp;
+                    }
+                    reader.Close();
+                }
+            }
+            File.WriteAllBytes(output, result.ToArray());
+            Console.WriteLine($"Repacked: {glyphs.Count} glyphs");
+            result.Close();
+        }
+    }
+}
