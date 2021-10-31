@@ -87,13 +87,13 @@ namespace PZ5_Font_Extractor
                 BinaryReader reader = new BinaryReader(stream);
                 Header header = ReadHeader(ref reader);
                 GlyphInfo[] glyphs = ReadGlyphs(ref reader, header);
-                string rawPath = Path.Combine(output, "RawImg");
+                string rawPath = Path.Combine(output, "IndexedPixelData");
                 if (!Directory.Exists(rawPath)) Directory.CreateDirectory(rawPath);
                 List<string> fontData = new List<string>();
                 foreach (GlyphInfo glyph in glyphs)
                 {
                     File.WriteAllBytes(Path.Combine(rawPath, $"{glyph.CharCode}"), glyph.RawTex); 
-                    fontData.Add($"Char={glyph.Character}\tCode={glyph.CharCode}\tWScale={glyph.WScale}\tHeight={glyph.Height}\tXadv={glyph.Xadv}\tYadv={glyph.Yadv}\tWidth={glyph.Width}");
+                    fontData.Add($"Char={glyph.Character}\tCode={glyph.CharCode}\tWScale={glyph.WScale}\tWidth={glyph.Width}\tHeight={glyph.Height}\tXadv={glyph.Xadv}\tYadv={glyph.Yadv}");
                 }
                 File.WriteAllLines(Path.Combine(output, "glyphs.txt"), fontData.ToArray());
                 Console.WriteLine($"Unpacked: {glyphs.Length} glyphs");
@@ -125,17 +125,17 @@ namespace PZ5_Font_Extractor
                             GlyphInfo glyph = new GlyphInfo();
                             glyph.Character = data[0].Split('=')[1];
                             glyph.CharCode = int.Parse(data[1].Split('=')[1]);
-                            string rawImg = Path.Combine(input, "RawImg", $"{glyph.CharCode}");
+                            string rawImg = Path.Combine(input, "IndexedPixelData", $"{glyph.CharCode}");
                             if (!File.Exists(rawImg)) continue;
                             glyph.WScale = (byte)int.Parse(data[2].Split('=')[1]);
-                            glyph.Height = (byte)int.Parse(data[3].Split('=')[1]);
-                            glyph.Xadv = (byte)int.Parse(data[4].Split('=')[1]);
-                            glyph.Yadv = (byte)int.Parse(data[5].Split('=')[1]);
-                            glyph.Width = (byte)int.Parse(data[6].Split('=')[1]);
+                            glyph.Width = (byte)int.Parse(data[3].Split('=')[1]);
+                            glyph.Height = (byte)int.Parse(data[4].Split('=')[1]);
+                            glyph.Xadv = (byte)int.Parse(data[5].Split('=')[1]);
+                            glyph.Yadv = (byte)int.Parse(data[6].Split('=')[1]);
                             glyph.RawTex = File.ReadAllBytes(rawImg);
                             if (glyph.RawTex.Length != 0x0992)
                             {
-                                Console.WriteLine($"{Path.GetFileName(rawImg)}: Import file size does not match the original size!");
+                                Console.WriteLine($"{Path.GetFileName(rawImg)}: Import pixel data file size does not match the original size!");
                                 continue;
                             }
                             glyph.TexOffset = textOffset;
