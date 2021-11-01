@@ -161,10 +161,10 @@ namespace PZ5_Font_Extractor
                             byte[] pixelData = IndexedPixel.Convert8BppTo4Bpp(File.ReadAllBytes(tex));
                             if (pixelData.Length > 0x0992)
                             {
-                                Console.WriteLine(pixelData.Length);
                                 Console.WriteLine($"{Path.GetFileName(tex)}: Import pixel data file size does not match the original size!");
                                 continue;
                             }
+                            else
                             pixelData.CopyTo(glyph.PixelData, 0);
                             glyph.TexOffset = textOffset;
                             glyphs.Add(glyph);
@@ -203,6 +203,10 @@ namespace PZ5_Font_Extractor
                         writer.Write(glyphs[i].PixelData);
                         writer.BaseStream.Position = temp;
                     }
+                    writer.BaseStream.Position = 8;
+                    writer.Write((int)writer.BaseStream.Length);
+                    writer.BaseStream.Position = 20;
+                    writer.Write((int)atlasOffset);
                     reader.Close();
                 }
             }

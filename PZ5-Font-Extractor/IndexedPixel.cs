@@ -15,6 +15,7 @@ namespace PZ5_Font_Extractor
             MemoryStream result = new MemoryStream();
             BinaryReader rd = new BinaryReader(stream);
             BinaryWriter wt = new BinaryWriter(result);
+            rd.BaseStream.Seek(128, SeekOrigin.Begin);
             while (rd.BaseStream.Length > rd.BaseStream.Position)
             {
                 string value = string.Empty;
