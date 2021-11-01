@@ -24,7 +24,14 @@ namespace PZ5_Font_Extractor
                     }
                     else if (ext == ".g1n")
                     {
-                        N1G.Extract(file, Path.Combine(Path.GetDirectoryName(file), Path.GetFileNameWithoutExtension(file)));
+                        try
+                        {
+                            N1G.Extract(file, Path.Combine(Path.GetDirectoryName(file), Path.GetFileNameWithoutExtension(file)));
+                        } catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
+                        
                     }
                 }
             }
