@@ -133,7 +133,9 @@ namespace PZ5_Font_Extractor
             {
                 using (FileStream stream = File.OpenRead(original))
                 {
-                    string[] fontData = File.ReadAllLines(Path.Combine(input, "glyphs.txt"));
+                    string[] fontData = File.ReadAllLines(Path.Combine(input, "glyphs.txt")).Where(e => e.Length > 0).OrderBy(e => 
+                        int.Parse(e.Split(new string[] { "\t" }, StringSplitOptions.None)[1].Split('=')[1]))
+                        .ToArray();
                     BinaryReader reader = new BinaryReader(stream);
                     Header header = ReadHeader(ref reader);
                     reader.BaseStream.Seek(0, SeekOrigin.Begin);
@@ -143,29 +145,36 @@ namespace PZ5_Font_Extractor
                     int ordinal = 0;
                     for (int i = 0; i < fontData.Length; i++)
                     {
-                        string[] data = fontData[i].Split(new[] { "\t" }, StringSplitOptions.None);
+                        string[] data = fontData[i].Split(new string[] { "\t" }, StringSplitOptions.None);
                         if (data.Length == 0 || data.Length < 7) continue;
                         try
                         {
                             GlyphInfo glyph = new GlyphInfo();
-                            glyph.Character = data[0].Split('=')[1];
+                            glyph.Character = data[0].Split(new string[] { "Char=" }, StringSplitOptions.None)[1];
                             glyph.CharCode = int.Parse(data[1].Split('=')[1]);
-                            string tex = Path.Combine(input, "IndexedPixelData", $"{glyph.CharCode}.dds");
-                            if (!File.Exists(tex)) continue;
+                            string tex = Path.Combine(input, "Import", $"{glyph.CharCode}.dds");
                             glyph.WScale = (byte)int.Parse(data[2].Split('=')[1]);
                             glyph.Width = (byte)int.Parse(data[3].Split('=')[1]);
                             glyph.Height = (byte)int.Parse(data[4].Split('=')[1]);
                             glyph.Xadv = (byte)int.Parse(data[5].Split('=')[1]);
                             glyph.Yadv = (byte)int.Parse(data[6].Split('=')[1]);
                             glyph.PixelData = new byte[0x0992];
-                            byte[] pixelData = IndexedPixel.Convert8BppTo4Bpp(File.ReadAllBytes(tex));
-                            if (pixelData.Length > 0x0992)
+                            if (!File.Exists(tex))
                             {
-                                Console.WriteLine($"{Path.GetFileName(tex)}: Import pixel data file size does not match the original size!");
-                                continue;
+                                tex = Path.Combine(input, "IndexedPixelData", $"{glyph.CharCode}");
+                                if (!File.Exists(tex)) continue;
+                                glyph.PixelData = File.ReadAllBytes(tex);
                             }
                             else
-                            pixelData.CopyTo(glyph.PixelData, 0);
+                            {
+                                byte[] pixelData = IndexedPixel.Convert8BppTo4Bpp(File.ReadAllBytes(tex));
+                                if (pixelData.Length > 0x0992)
+                                {
+                                    Console.WriteLine($"{Path.GetFileName(tex)}: Import pixel data file size does not match the original size!");
+                                    continue;
+                                }
+                                pixelData.CopyTo(glyph.PixelData, 0);
+                            }    
                             glyph.TexOffset = textOffset;
                             glyphs.Add(glyph);
                             textOffset += glyph.PixelData.Length;
@@ -182,7 +191,7 @@ namespace PZ5_Font_Extractor
                         writer.Write(charIDs[i]);
                     }
                     writer.Write(new byte[2]);
-                    glyphs = glyphs.OrderBy(g => g.CharCode).ToList();
+                    //glyphs = glyphs.OrderBy(g => g.CharCode).ToList();
                     long glyphOffset = writer.BaseStream.Position;
                     writer.Write(new byte[0xC * glyphs.Count]);
                     long atlasOffset = writer.BaseStream.Position;
