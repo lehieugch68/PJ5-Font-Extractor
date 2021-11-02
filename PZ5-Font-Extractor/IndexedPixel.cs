@@ -18,11 +18,17 @@ namespace PZ5_Font_Extractor
             rd.BaseStream.Seek(128, SeekOrigin.Begin);
             while (rd.BaseStream.Length > rd.BaseStream.Position)
             {
-                string value = string.Empty;
+                byte high = rd.ReadByte();
+                byte low = rd.ReadByte();
+
+                var b = (high << 4) | low;
+
+                wt.Write((byte)b);
+                /*string value = string.Empty;
                 byte bit_a = rd.ReadByte();
                 byte bit_b = rd.ReadByte();
                 value += $"{Compare(bit_b)}{Compare(bit_a)}";
-                wt.Write(Convert.ToByte(value, 2));
+                wt.Write(Convert.ToByte(value, 2));*/
             }
             wt.Close();
             rd.Close();
@@ -44,6 +50,10 @@ namespace PZ5_Font_Extractor
             while (rd.BaseStream.Length > rd.BaseStream.Position)
             {
                 byte bit = rd.ReadByte();
+                /*int low = bit & 0xF;
+                int high = bit >> 4;
+                wt.Write((byte)high);
+                wt.Write((byte)low);*/
                 char[] chars = Convert.ToString(bit, 2).PadLeft(8, '0').ToCharArray();
                 int firstHalfByte = (int)Math.Pow(int.Parse(new string(chars.Take(4).ToArray()).PadLeft(8, '0')), 2);
                 int lastHalfByte = (int)Math.Pow(int.Parse(new string(chars.Skip(4).Take(4).ToArray()).PadLeft(8, '0')), 2);
