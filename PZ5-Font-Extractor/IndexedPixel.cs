@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.IO;
+using System.Globalization;
 
 namespace PZ5_Font_Extractor
 {
@@ -22,21 +19,19 @@ namespace PZ5_Font_Extractor
                 color += JoinBit(rd.ReadByte());
                 color += JoinBit(rd.ReadByte());
 
-                wt.Write(byte.Parse(color, System.Globalization.NumberStyles.HexNumber));
+                wt.Write(byte.Parse(color, NumberStyles.HexNumber));
             }
             wt.Close();
             rd.Close();
             return result.ToArray();
         }
-
-        private static string Compare(byte index)
+        /*private static string Compare(byte index)
         {
             if (index > 225) index = 225;
             int square = (int)Math.Round(Math.Sqrt(index));
             string value = Convert.ToString(square, 2).PadLeft(4, '0');
             return value;
-        }
-
+        }*/
         public static byte[] Convert4BppTo8Bpp(byte[] input)
         {
             MemoryStream stream = new MemoryStream(input);
@@ -46,14 +41,13 @@ namespace PZ5_Font_Extractor
             while (rd.BaseStream.Length > rd.BaseStream.Position)
             {
                 string bit = rd.ReadByte().ToString("X2");
-                wt.Write(byte.Parse($"{bit[0]}0", System.Globalization.NumberStyles.HexNumber));
-                wt.Write(byte.Parse($"{bit[1]}0", System.Globalization.NumberStyles.HexNumber));
+                wt.Write(byte.Parse($"{bit[0]}0", NumberStyles.HexNumber));
+                wt.Write(byte.Parse($"{bit[1]}0", NumberStyles.HexNumber));
             }
             wt.Close();
             rd.Close();
             return result.ToArray();
         }
-
         private static string JoinBit(byte input)
         {
             string res = string.Empty;

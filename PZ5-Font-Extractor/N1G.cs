@@ -1,11 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.IO;
-using System.Drawing;
-using System.Drawing.Imaging;
 
 namespace PZ5_Font_Extractor
 {
@@ -90,7 +86,9 @@ namespace PZ5_Font_Extractor
                 Header header = ReadHeader(ref reader);
                 GlyphInfo[] glyphs = ReadGlyphs(ref reader, header);
                 string pixelPath = Path.Combine(output, "IndexedPixelData");
+                string importPath = Path.Combine(output, "Import");
                 if (!Directory.Exists(pixelPath)) Directory.CreateDirectory(pixelPath);
+                if (!Directory.Exists(importPath)) Directory.CreateDirectory(importPath);
                 List<string> fontData = new List<string>();
                 foreach (GlyphInfo glyph in glyphs)
                 {
@@ -152,7 +150,7 @@ namespace PZ5_Font_Extractor
                             GlyphInfo glyph = new GlyphInfo();
                             glyph.Character = data[0].Split(new string[] { "Char=" }, StringSplitOptions.None)[1];
                             glyph.CharCode = int.Parse(data[1].Split('=')[1]);
-                            string tex = Path.Combine(input, "Import", $"{glyph.CharCode}.dds");
+                            string tex = Path.Combine(input, "IndexedPixelData", "Import", $"{glyph.CharCode}.dds");
                             glyph.WScale = (byte)int.Parse(data[2].Split('=')[1]);
                             glyph.Width = (byte)int.Parse(data[3].Split('=')[1]);
                             glyph.Height = (byte)int.Parse(data[4].Split('=')[1]);
