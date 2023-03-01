@@ -29,6 +29,7 @@ namespace PZ5_Font_Extractor
             public byte Yadv;
             public byte Width;
             public int TexOffset;
+            public int TexSize;
             public byte[] PixelData;
         }
         private static Header ReadHeader(ref BinaryReader reader)
@@ -72,8 +73,20 @@ namespace PZ5_Font_Extractor
                 reader.BaseStream.Position += 3;
                 glyphs[i].TexOffset = reader.ReadInt32();
                 long temp = reader.BaseStream.Position;
+
+                if (i >= charCount - 1)
+                {
+                    glyphs[i].TexSize = (int)reader.BaseStream.Length - glyphs[i].TexOffset;
+                }
+                else
+                {
+                    reader.BaseStream.Position += 8;
+                    glyphs[i].TexSize = reader.ReadInt32() - glyphs[i].TexOffset;
+                }
                 reader.BaseStream.Position = header.AtlasOffset + glyphs[i].TexOffset;
-                glyphs[i].PixelData = reader.ReadBytes(0x0992); //4 bpp, Width * Height * 0.5 = image size, the rest can be shadow or mipmap
+
+                //glyphs[i].PixelData = reader.ReadBytes(0x0992); //4 bpp, Width * Height * 0.5 = image size, the rest can be shadow or mipmap
+                glyphs[i].PixelData = reader.ReadBytes(glyphs[i].TexSize);
                 reader.BaseStream.Position = temp;
             }
             return glyphs;
@@ -86,7 +99,7 @@ namespace PZ5_Font_Extractor
                 Header header = ReadHeader(ref reader);
                 GlyphInfo[] glyphs = ReadGlyphs(ref reader, header);
                 string pixelPath = Path.Combine(output, "IndexedPixelData");
-                string importPath = Path.Combine(output, "Import");
+                string importPath = Path.Combine(pixelPath, "Import");
                 if (!Directory.Exists(pixelPath)) Directory.CreateDirectory(pixelPath);
                 if (!Directory.Exists(importPath)) Directory.CreateDirectory(importPath);
                 List<string> fontData = new List<string>();
