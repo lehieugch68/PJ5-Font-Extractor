@@ -13,6 +13,8 @@ namespace PZ5_Font_Extractor
             public int FileSize;
             public int HeaderSize;
             public int AtlasOffset;
+            public int PalleteCount;
+            public int TableCount;
         }
         private struct CharID
         {
@@ -23,11 +25,8 @@ namespace PZ5_Font_Extractor
         {
             public int CharCode;
             public string Character;
-            public byte WScale;
-            public byte Height;
-            public byte Xadv;
-            public byte Yadv;
             public byte Width;
+            public byte Height;
             public int TexOffset;
             public int TexSize;
             public byte[] PixelData;
@@ -41,6 +40,8 @@ namespace PZ5_Font_Extractor
             header.HeaderSize = reader.ReadInt32();
             reader.BaseStream.Position += 4;
             header.AtlasOffset = reader.ReadInt32();
+            header.PalleteCount = reader.ReadInt32();
+            header.TableCount= reader.ReadInt32();
             return header;
         }
 
@@ -65,18 +66,15 @@ namespace PZ5_Font_Extractor
             {
                 glyphs[i].CharCode = charIDs[i].CharCode;
                 glyphs[i].Character = charIDs[i].Character.ToString();
-                glyphs[i].WScale = reader.ReadByte();
-                glyphs[i].Height = reader.ReadByte();
-                glyphs[i].Xadv = reader.ReadByte();
-                glyphs[i].Yadv = reader.ReadByte();
                 glyphs[i].Width = reader.ReadByte();
-                reader.BaseStream.Position += 3;
+                glyphs[i].Height = reader.ReadByte();
+                reader.BaseStream.Position += 6;
                 glyphs[i].TexOffset = reader.ReadInt32();
                 long temp = reader.BaseStream.Position;
 
                 if (i >= charCount - 1)
                 {
-                    glyphs[i].TexSize = (int)reader.BaseStream.Length - glyphs[i].TexOffset;
+                    glyphs[i].TexSize = (int)reader.BaseStream.Length - (glyphs[i].TexOffset + header.AtlasOffset);
                 }
                 else
                 {
@@ -117,7 +115,7 @@ namespace PZ5_Font_Extractor
                     convertedData.CopyTo(ddsData, ddsHeader.Length);
                     File.WriteAllBytes(Path.Combine(pixelPath, $"{glyph.CharCode}.dds"), ddsData);
                     File.WriteAllBytes(Path.Combine(pixelPath, $"{glyph.CharCode}"), glyph.PixelData); 
-                    fontData.Add($"Char={glyph.Character}\tCode={glyph.CharCode}\tWScale={glyph.WScale}\tWidth={glyph.Width}\tHeight={glyph.Height}\tXadv={glyph.Xadv}\tYadv={glyph.Yadv}");
+                    fontData.Add($"Char={glyph.Character}\tCode={glyph.CharCode}\tWidth={glyph.Width}\tHeight={glyph.Height}");
                 }
                 File.WriteAllLines(Path.Combine(output, "glyphs.txt"), fontData.ToArray());
                 Console.WriteLine($"Unpacked: {glyphs.Length} glyphs");
@@ -164,12 +162,9 @@ namespace PZ5_Font_Extractor
                             glyph.Character = data[0].Split(new string[] { "Char=" }, StringSplitOptions.None)[1];
                             glyph.CharCode = int.Parse(data[1].Split('=')[1]);
                             string tex = Path.Combine(input, "IndexedPixelData", "Import", $"{glyph.CharCode}.dds");
-                            glyph.WScale = (byte)int.Parse(data[2].Split('=')[1]);
-                            glyph.Width = (byte)int.Parse(data[3].Split('=')[1]);
-                            glyph.Height = (byte)int.Parse(data[4].Split('=')[1]);
-                            glyph.Xadv = (byte)int.Parse(data[5].Split('=')[1]);
-                            glyph.Yadv = (byte)int.Parse(data[6].Split('=')[1]);
-                            glyph.PixelData = new byte[0x0992];
+                            glyph.Width = (byte)int.Parse(data[2].Split('=')[1]);
+                            glyph.Height = (byte)int.Parse(data[3].Split('=')[1]);
+                            glyph.PixelData = new byte[glyph.TexSize];
                             if (!File.Exists(tex))
                             {
                                 tex = Path.Combine(input, "IndexedPixelData", $"{glyph.CharCode}");
@@ -179,7 +174,7 @@ namespace PZ5_Font_Extractor
                             else
                             {
                                 byte[] pixelData = IndexedPixel.Convert8BppTo4Bpp(File.ReadAllBytes(tex));
-                                if (pixelData.Length > 0x0992)
+                                if (pixelData.Length > glyph.TexSize)
                                 {
                                     Console.WriteLine($"{Path.GetFileName(tex)}: Import pixel data file size does not match the original size!");
                                     continue;
@@ -209,14 +204,12 @@ namespace PZ5_Font_Extractor
                     writer.BaseStream.Position = glyphOffset;
                     for (int i = 0; i < glyphs.Count; i++)
                     {
-                        writer.Write(glyphs[i].WScale);
-                        writer.Write(glyphs[i].Height);
-                        writer.Write(glyphs[i].Xadv);
-                        writer.Write(glyphs[i].Yadv);
                         writer.Write(glyphs[i].Width);
-                        writer.Write((byte)0xDD);
-                        writer.Write((byte)0x0);
-                        writer.Write((byte)0x46);
+                        writer.Write(glyphs[i].Height);
+                        writer.BaseStream.Position++;
+                        writer.Write(glyphs[i].Width);
+                        writer.BaseStream.Position += 2;
+                        writer.Write(glyphs[i].Height);
                         writer.Write(glyphs[i].TexOffset);
                         long temp = writer.BaseStream.Position;
                         writer.BaseStream.Position = atlasOffset + glyphs[i].TexOffset;
