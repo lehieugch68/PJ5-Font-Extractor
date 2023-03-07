@@ -15,6 +15,7 @@ namespace PZ5_Font_Extractor
             public int AtlasOffset;
             public int PalleteCount;
             public int TableCount;
+            public int[] TableOffset;
         }
         private struct CharID
         {
@@ -42,12 +43,16 @@ namespace PZ5_Font_Extractor
             header.AtlasOffset = reader.ReadInt32();
             header.PalleteCount = reader.ReadInt32();
             header.TableCount= reader.ReadInt32();
+            header.TableOffset = new int[header.TableCount];
+            for (int i = 0; i < header.TableCount; i++) {
+                header.TableOffset[i] = reader.ReadInt32();
+            }
             return header;
         }
 
-        private static GlyphInfo[] ReadGlyphs(ref BinaryReader reader, Header header)
+        private static GlyphInfo[] ReadGlyphs(ref BinaryReader reader, Header header, int tableIndex)
         {
-            reader.BaseStream.Position = header.HeaderSize;
+            reader.BaseStream.Position = header.TableOffset[tableIndex];
             int charCount = 0;
             CharID[] charIDs = new CharID[0xFFFF];
             for (int i = 0; i < 0xFFFF; i++)
@@ -74,7 +79,10 @@ namespace PZ5_Font_Extractor
 
                 if (i >= charCount - 1)
                 {
-                    glyphs[i].TexSize = (int)reader.BaseStream.Length - (glyphs[i].TexOffset + header.AtlasOffset);
+                    int nextOffset = 0;
+                    if (tableIndex >= header.TableCount - 1) nextOffset = (int)reader.BaseStream.Length;
+                    else nextOffset = header.TableOffset[tableIndex + 1];
+                    glyphs[i].TexSize = nextOffset - (glyphs[i].TexOffset + header.AtlasOffset);
                 }
                 else
                 {
@@ -95,30 +103,34 @@ namespace PZ5_Font_Extractor
             {
                 BinaryReader reader = new BinaryReader(stream);
                 Header header = ReadHeader(ref reader);
-                GlyphInfo[] glyphs = ReadGlyphs(ref reader, header);
-                string pixelPath = Path.Combine(output, "IndexedPixelData");
-                string importPath = Path.Combine(pixelPath, "Import");
-                if (!Directory.Exists(pixelPath)) Directory.CreateDirectory(pixelPath);
-                if (!Directory.Exists(importPath)) Directory.CreateDirectory(importPath);
-                List<string> fontData = new List<string>();
-                foreach (GlyphInfo glyph in glyphs)
-                {
-                    int imgWidth = glyph.Width % 2 == 0 ? glyph.Width : glyph.Width + 1;
-                    int pixelSize = (imgWidth * glyph.Height * 4) / 8;
-                    byte[] realPixelData = new byte[pixelSize];
-                    for (int i = 0; i < pixelSize; i++) realPixelData[i] = glyph.PixelData[i];
+                List<GlyphInfo[]> tables = new List<GlyphInfo[]>();
 
-                    byte[] convertedData = IndexedPixel.Convert4BppTo8Bpp(realPixelData);
-                    byte[] ddsHeader = CreateDDSHeader(imgWidth, glyph.Height);
-                    byte[] ddsData = new byte[convertedData.Length + ddsHeader.Length];
-                    ddsHeader.CopyTo(ddsData, 0);
-                    convertedData.CopyTo(ddsData, ddsHeader.Length);
-                    File.WriteAllBytes(Path.Combine(pixelPath, $"{glyph.CharCode}.dds"), ddsData);
-                    File.WriteAllBytes(Path.Combine(pixelPath, $"{glyph.CharCode}"), glyph.PixelData); 
-                    fontData.Add($"Char={glyph.Character}\tCode={glyph.CharCode}\tWidth={glyph.Width}\tHeight={glyph.Height}");
+                for (int i = 0; i < header.TableCount; i++) {
+                    GlyphInfo[] glyphs = ReadGlyphs(ref reader, header, i);
+                    string pixelPath = Path.Combine(output, i.ToString(), "CharImages");
+                    string importPath = Path.Combine(pixelPath, i.ToString(), "Import");
+                    if (!Directory.Exists(pixelPath)) Directory.CreateDirectory(pixelPath);
+                    if (!Directory.Exists(importPath)) Directory.CreateDirectory(importPath);
+                    List<string> fontData = new List<string>();
+                    foreach (GlyphInfo glyph in glyphs)
+                    {
+                        int imgWidth = glyph.Width % 2 == 0 ? glyph.Width : glyph.Width + 1;
+                        int pixelSize = (imgWidth * glyph.Height * 4) / 8;
+                        byte[] realPixelData = new byte[pixelSize];
+                        for (int j = 0; j < pixelSize; j++) realPixelData[j] = glyph.PixelData[j];
+
+                        byte[] convertedData = IndexedPixel.Convert4BppTo8Bpp(realPixelData);
+                        byte[] ddsHeader = CreateDDSHeader(imgWidth, glyph.Height);
+                        byte[] ddsData = new byte[convertedData.Length + ddsHeader.Length];
+                        ddsHeader.CopyTo(ddsData, 0);
+                        convertedData.CopyTo(ddsData, ddsHeader.Length);
+                        File.WriteAllBytes(Path.Combine(pixelPath, $"{glyph.CharCode}.dds"), ddsData);
+                        File.WriteAllBytes(Path.Combine(pixelPath, $"{glyph.CharCode}"), glyph.PixelData);
+                        fontData.Add($"Char={glyph.Character}\tCode={glyph.CharCode}\tWidth={glyph.Width}\tHeight={glyph.Height}");
+                    }
+                    File.WriteAllLines(Path.Combine(output, i.ToString(), "glyphs.txt"), fontData.ToArray());
+                    Console.WriteLine($"Unpacked: {glyphs.Length} glyphs");
                 }
-                File.WriteAllLines(Path.Combine(output, "glyphs.txt"), fontData.ToArray());
-                Console.WriteLine($"Unpacked: {glyphs.Length} glyphs");
                 reader.Close();
             }
         }
@@ -136,7 +148,7 @@ namespace PZ5_Font_Extractor
         }
         public static void Import(string original, string input, string output)
         {
-            MemoryStream result = new MemoryStream();
+            /* MemoryStream result = new MemoryStream();
             List<GlyphInfo> glyphs = new List<GlyphInfo>();
             using (BinaryWriter writer = new BinaryWriter(result))
             {
@@ -225,7 +237,7 @@ namespace PZ5_Font_Extractor
             }
             File.WriteAllBytes(output, result.ToArray());
             Console.WriteLine($"Repacked: {glyphs.Count} glyphs");
-            result.Close();
+            result.Close(); */
         }
     }
 }

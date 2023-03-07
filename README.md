@@ -1,5 +1,7 @@
 # Project Zero 5 Font Extractor
 
+Developing...
+
 Fatal Frame: Maiden of Black Water Font Tool, may work on some other KT games.
 
 Credits to [Oblivion](https://viethoagame.com/members/oblivion.4/) and [haianh97](https://viethoagame.com/members/haianh97.441/).
